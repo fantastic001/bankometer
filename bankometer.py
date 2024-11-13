@@ -48,6 +48,58 @@ stack.assignAction(analyze, "Show number of months for given rate, price and cou
 
 stack.popAll()
 
+stack.pushCommand("transactions")
+stack.pushVariable("gnucash_file")
+def analyze_gnucash(gnucash_file, **kw):
+    import piecash
+    book = piecash.open_book(gnucash_file)
+    transactions = book.transactions
+    for transaction in transactions:
+        print(transaction.description)
+        print(transaction.splits)
+        print(transaction.post_date)
+        print("")
+stack.assignAction(analyze_gnucash, "Show transactions from gnucash file")
+
+stack.popAll()
+
+stack.pushCommand("new")
+stack.pushVariable("gnucash_file")
+stack.pushVariable("source")
+stack.pushVariable("destination")
+stack.pushVariable("amount")
+stack.pushVariable("description")
+def add_transaction(gnucash_file, source, destination, amount, description, **kw):
+    import piecash
+    import datetime 
+
+    my_currency = "RSD"
+    amount = int(amount)
+    currency = None 
+    for c in book.currencies:
+        if my_currency in c.mnemonic:
+            currency = c
+            break
+    if currency is None:
+        print("Currency not found")
+        return
+    source_account = next(filter(lambda x: source in x.fullname, book.accounts))
+    destination_account = next(filter(lambda x: destination in x.fullname, book.accounts))
+    book.transactions.append(piecash.Transaction(
+        currency=currency,
+        post_date=datetime.datetime.now().date(),
+        description=description,
+        splits=[
+            piecash.Split(account=source_account, value=-amount),
+            piecash.Split(account=destination_account, value=amount)
+        ]
+    ))
+    book.save()
+stack.assignAction(add_transaction, "Add transaction to gnucash file")
+
+
+stack.popAll()
+
 stack.pushCommand("help")
 stack.assignAction(lambda **kw: print(stack.getHelp()), "Get help")
 
