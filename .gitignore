@@ -1,0 +1,12 @@
+# Python Packages and Tools
+venv/
+.idea/
+.ipynb_checkpoints/
+*.pyc
+__pycache__/
+build/
+dist/
+*.egg-info/
+__pycache__/
+*.log
+env/
