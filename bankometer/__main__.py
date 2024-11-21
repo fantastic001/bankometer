@@ -73,7 +73,7 @@ stack.pushVariable("description")
 def add_transaction(gnucash_file, source, destination, amount, description, **kw):
     import piecash
     import datetime 
-
+    book = piecash.open_book(gnucash_file)
     my_currency = "RSD"
     amount = int(amount)
     currency = None 
