@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np 
 import sys
 from ArgumentStack import * 
+from bankometer import load_config, load_bank_module
 calculate_monthly_by_year_rate = lambda P, r, T: P*r*(r+1)**T / ((1+r)**T - 1)
 calculate_coupon = lambda P, r, T: calculate_monthly_by_year_rate(P, r/12, T)
 calculate_diff = lambda P, r, T: T*calculate_coupon(P,r,T) - P
@@ -99,6 +100,15 @@ stack.assignAction(add_transaction, "Add transaction to gnucash file")
 
 
 stack.popAll()
+
+stack.pushVariable("account_name")
+def login(account_name, **kw):
+    config = load_config()
+    bank = load_bank_module(config, account_name)
+    bank.login()
+    print("Logged in")
+stack.assignAction(login, "Login to bank")
+
 
 stack.pushCommand("help")
 stack.assignAction(lambda **kw: print(stack.getHelp()), "Get help")

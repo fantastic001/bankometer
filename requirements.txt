@@ -2,3 +2,6 @@ numpy
 matplotlib
 ArgumentStack
 piecash
+pyyaml 
+requests 
+pandas
