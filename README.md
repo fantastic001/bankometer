@@ -51,41 +51,12 @@ This command logs into `bank_a` using the credentials and module defined in the 
 
 #### **List All Transactions**
 ```bash
-bankometer bank_a --list-transactions
+bankometer bank_a list_transactions start_date end_date
 ```
-Logs into `bank_a` and lists all transactions retrieved from the bank module.
+Logs into `bank_a` and lists all transactions retrieved from the bank module from the specified start date and end date. Dates are specified in format `YYYY-MM-DD`.
 
 ---
 
-#### **Filter Transactions by Minimum Amount**
-```bash
-bankometer bank_a --list-transactions --min-amount 100
-```
-Fetches transactions for `bank_a` and only displays those with an amount greater than or equal to 100.
-
----
-
-#### **Filter Transactions by Maximum Amount**
-```bash
-bankometer bank_a --list-transactions --max-amount 50
-```
-Fetches transactions for `bank_a` and only displays those with an amount less than or equal to 50.
-
----
-
-#### **Filter Transactions by Keyword**
-```bash
-bankometer bank_a --list-transactions --keyword "Grocery"
-```
-Fetches transactions for `bank_a` and displays only those containing the word "Grocery" in their description.
-
----
-
-#### **Combine Filters**
-```bash
-bankometer bank_a --list-transactions --min-amount 50 --max-amount 200 --keyword "Store"
-```
-Fetches transactions for `bank_a` and applies multiple filters: amounts between 50 and 200, and descriptions containing the word "Store."
 
 ---
 

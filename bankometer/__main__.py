@@ -1,3 +1,4 @@
+import datetime
 import matplotlib.pyplot as plt
 import numpy as np 
 import sys
@@ -109,6 +110,20 @@ def login(account_name, **kw):
     print("Logged in")
 stack.assignAction(login, "Login to bank")
 
+stack.pushCommand("list_transactions")
+stack.pushVariable("start_date")
+stack.pushVariable("end_date")
+def list_transactions(start_date, end_date, account_name, **kw):
+    start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+    config = load_config()
+    bank = load_bank_module(config, account_name)
+    bank.login()
+    transactions = bank.get_transactions(start_date, end_date)
+    print(transactions.to_csv())
+stack.assignAction(list_transactions, "List transactions from bank")
+
+stack.popAll()
 
 stack.pushCommand("help")
 stack.assignAction(lambda **kw: print(stack.getHelp()), "Get help")
