@@ -7,22 +7,22 @@ Bankometer is a tool for managing your bank accounts
 # Usage 
 
 
-### 1. Configuration File Example (`bankometer_config.yaml`)
+### 1. Configuration File Example (`bankometer_config.yml`)
 
 ```yaml
 accounts:
     bank_a:
     username: "user_a"
     password: "pass_a"
-    module: "bank_modules.bank_a"
+    module: "bank_a.BankA"
 
     bank_b:
     username: "user_b"
     password: "pass_b"
-  module: "bank_modules.bank_b"
+  module: "bank_b.BankB"
 ```
 
-- **`username` and `password`**: Login credentials for the bank.
+- **`username` and `password`**: Login credentials for the bank. Some banks will require manual login. Options available are plugin-specific.
 - **`module`**: The Python module implementing specific behavior for the bank. These modules contain the `login` and `get_transactions` functions.
 
 ---
@@ -32,7 +32,7 @@ accounts:
 Set the location of the configuration file:
 
 ```bash
-export BANKOMETER_CONFIG=/path/to/custom_config.yaml
+export BANKOMETER_CONFIG=/path/to/custom_config.yml
 ```
 
 If the environment variable is not set, the default config file is `~/.config/bankometer_config.yaml` in the current working directory.
@@ -68,17 +68,19 @@ Logs into `bank_a` and lists all transactions retrieved from the bank module fro
 
    ```python
    # bank_modules/bank_c.py
+   from bankometer import BankInterface
+   import pandas as pd
+  class BankC(BankInterface)
+    def login(self):
+        print(f"Logging into Bank C as {username}...")
+        # Add login logic here
 
-   def login(username, password):
-       print(f"Logging into Bank C as {username}...")
-       # Add login logic here
-
-   def get_transactions():
-       # Return a list of transactions (simulate for now)
-       return [
-           {"date": "2024-11-01", "amount": -30, "description": "Subscription Fee"},
-           {"date": "2024-11-02", "amount": 1000, "description": "Freelance Payment"},
-       ]
+    def get_transactions(self, start_date, end_date) -> pd.DataFrame:
+        # Return a list of transactions (simulate for now)
+        return [
+            {"date": "2024-11-01", "amount": -30, "description": "Subscription Fee"},
+            {"date": "2024-11-02", "amount": 1000, "description": "Freelance Payment"},
+        ]
    ```
 
 2. **Update the Configuration File**
@@ -89,7 +91,7 @@ Logs into `bank_a` and lists all transactions retrieved from the bank module fro
    bank_c:
      username: "user_c"
      password: "pass_c"
-     module: "bank_modules.bank_c"
+     module: "bank_c.BankC"
    ```
 
 3. **Use Bankometer**
