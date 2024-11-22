@@ -7,11 +7,14 @@ setup(
     author="Stefan Nožinić",
     author_email="stefan@lugons.org",  
     url="https://github.com/fantastic001/bankometer", 
-    packages=find_packages(),
+    packages=[
+        "bankometer",
+        "bankometer.bank_modules"
+    ],
     install_requires=[
         "pyyaml",
         "requests",
-        "pandas",
+        "pandas"
     ],
     entry_points={
         "console_scripts": [
