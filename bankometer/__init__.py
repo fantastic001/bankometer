@@ -1,4 +1,6 @@
 
+import datetime 
+
 def load_config():
     """
     Loads YAML config from default path (~/.config/bankometer_config.yml) or from path specified in BANKOMETER_CONFIG environment variable.
@@ -20,7 +22,7 @@ class BankInterface:
     
     def get_balance(self):
         raise NotImplementedError()
-    def get_transactions(self):
+    def get_transactions(self, start_date: datetime.date, end_date: datetime.date):
         raise NotImplementedError()
     def login(self):
         raise NotImplementedError()
