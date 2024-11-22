@@ -108,7 +108,7 @@ Set the custom config file path using an environment variable:
 
 ```bash
 export BANKOMETER_CONFIG=/custom/path/to/config.yaml
-bankometer bank_a --list-transactions
+bankometer bank_a list_transactions 2024-10-15 2024-10-20
 ``` 
 
 This setup allows you to dynamically support multiple banks by defining their behavior in separate modules and referencing them in the configuration file.
