@@ -1,4 +1,5 @@
 
+from io import StringIO
 from bankometer import BankInterface
 import requests 
 
@@ -10,6 +11,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
 import time
 from bs4 import BeautifulSoup
+import pandas as pd 
+import datetime 
+
+class YettelException(Exception):
+    pass
 
 def start_browser(chromedriver_path = None):
     # Configure Chrome options
@@ -33,40 +39,10 @@ def capture_cookies(driver):
     print("Captured Cookies:", cookies)
     return cookies
 
-def main():
-    driver = start_browser()
-    account_id = None 
-    try:
-        # Navigate to login page
-        login_url = "https://online.mobibanka.rs/Identity"
-        driver.get(login_url)
-        
-        print("Waiting for user to log in...")
-        # wait for element //*[@id="main"]/div[2]/div/div[1]/section/div/div[1]/div/div/div/div[1]/div[1]/p
-        while True:
-            try:
-                # try to find element with attribute data-accountid 
-                root = driver.find_element(By.XPATH, '//*[@data-accountid]')
-                account_id = root.get_attribute('data-accountid')
-                print("Account ID: ", account_id)
-                break
-            except:
-                time.sleep(1)
-                continue
-        
-
-        # Sniff network requests (if needed)
-        sniff_requests(driver)
-
-        # Capture cookies after login
-        cookies = capture_cookies(driver)
-        for cookie in cookies:
-            print(cookie["name"], cookie["value"])
-        
-        session = requests.Session()
-        for cookie in cookies:
-            session.cookies.set(cookie["name"], cookie["value"])
-        
+class Yettel(BankInterface):
+    def get_balance(self):
+        raise NotImplementedError()
+    def get_transactions(self, start_date: datetime.date, end_date: datetime.date):
         url = 'https://online.mobibanka.rs/CustomerAccount/Accounts/PrintList'
         headers = {
             'Accept': '*/*',
@@ -79,15 +55,15 @@ def main():
             'PageSize': '',
             'Report': 'csv',
             'PaymentDescription': '',
-            'DateFrom': '22/10/2024',
-            'DateTo': '21/11/2025',
+            'DateFrom': start_date.strftime("%d/%m/%Y"),
+            'DateTo': end_date.strftime("%d/%m/%Y"),
             'CurrencyList_input': 'Sve valute',
             'CurrencyList': '',
             'AmountFrom': '',
             'AmountTo': '',
             'Direction': '',
             'TransactionType': '-1',
-            'AccountPicker': account_id,
+            'AccountPicker': self.account_id,
             'RelatedCardPicker': '-1',
             'CounterParty': '',
             'StandingOrderId': '',
@@ -99,7 +75,7 @@ def main():
             'StatusPicker': 'Executed',
             'ViewPicker': 'List'
         }
-        response = session.post(url, headers=headers, data=data)
+        response = self.session.post(url, headers=headers, data=data)
         print("Response: ", response.text)
         print("Status code: ", response.status_code)
         # parse response hml and find div containing /CustomerAccount/Accounts/RenderDocument as text 
@@ -118,29 +94,56 @@ def main():
                 break
         if csv_url is not None:
             print("CSV URL: ", csv_url)
-            response = session.get(csv_url)
-            print("CSV: ", response.text)
+            response = self.session.get(csv_url)
+            df = pd.read_csv(StringIO(response.text))
+            return df 
         else:
-            print("CSV not found")
-
-    except Exception as e:
-        raise 
-        
-
-    finally:
-        # Close the browser
-        print("Closing browser...")
-        driver.quit()
+            raise YettelException("Could not find CSV URL in response")
 
 
-class Yettel(BankInterface):
-    def get_balance(self):
-        raise NotImplementedError()
-    def get_transactions(self):
-        raise NotImplementedError()
+
     def login(self):
-        print("Logging in to Yettel")
+        max_wait_time = self.get_config("max_wait_time", 300)
+        driver = start_browser()
+        account_id = None 
+        try:
+            # Navigate to login page
+            login_url = "https://online.mobibanka.rs/Identity"
+            driver.get(login_url)
+            
+            print("Waiting for user to log in...")
+
+            for i in range(max_wait_time):
+                try:
+                    # try to find element with attribute data-accountid 
+                    root = driver.find_element(By.XPATH, '//*[@data-accountid]')
+                    account_id = root.get_attribute('data-accountid')
+                    print("Account ID: ", account_id)
+                    break
+                except:
+                    time.sleep(1)
+                    continue
+            if account_id is None:
+                raise YettelException("Could not find account ID in response")
+
+            # Sniff network requests (if needed)
+            sniff_requests(driver)
+
+            # Capture cookies after login
+            cookies = capture_cookies(driver)
+            session = requests.Session()
+            for cookie in cookies:
+                session.cookies.set(cookie["name"], cookie["value"])
+        finally:
+            driver.quit()
+            self.session = session
+            self.account_id = account_id
 
 
 if __name__ == "__main__":
-    main()
+    interface = Yettel({})
+    today = datetime.date.today()
+    start_date = today - datetime.timedelta(days=1)
+    interface.login()
+    data = interface.get_transactions(start_date, today)
+    print(data)
