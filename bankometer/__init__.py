@@ -1,6 +1,17 @@
 
-import datetime 
+import datetime
+from email.policy import default 
 import pandas as pd 
+
+import piecash
+import matplotlib.pyplot as plt
+import numpy as np 
+import sys
+
+import sqlalchemy
+import sqlalchemy.orm
+import sqlalchemy.orm.dynamic
+
 def load_config():
     """
     Loads YAML config from default path (~/.config/bankometer_config.yml) or from path specified in BANKOMETER_CONFIG environment variable.
@@ -13,6 +24,10 @@ def load_config():
     with open(config_path, "r") as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
+def getattrs(obj):
+    return {
+        a: getattr(obj, a) for a in dir(obj) if not a.startswith("__") and not callable(getattr(obj, a))
+    }
 class BankInterface:
     def __init__(self, config):
         self.config = config
@@ -40,13 +55,100 @@ def load_bank_module(config, account_name) -> BankInterface:
     module = importlib.import_module("bankometer.bank_modules.%s" % modulename)
     return getattr(module, classname)(config)
 
+class Methods:
+    
+    def accounts(self, gnucash_file: str):
+        """
+        Returns accounts from gnucash file.
+        """
+        book = piecash.open_book(gnucash_file)
+        data = [] 
+        for account in book.accounts:
+            prices: sqlalchemy.orm.dynamic.AppenderQuery = account.commodity.prices if account.commodity else None # type: ignore
+            
+            default_currency =  not prices or not prices.first()
+            data.append({
+                "name": account.fullname,
+                "currency": account.commodity.fullname, 
+                # "account": getattrs(account), 
+                "currency_price": 1 if default_currency else prices.first().value,
+                "price_in": prices.first().currency.fullname if not default_currency else account.commodity.fullname
+                # "currency": account.currency.mnemonic if account.currency else None
+            })
+        return data 
+
+    def transactions(self, gnucash_file: str, *, account: str = ""):
+        book = piecash.open_book(gnucash_file)
+        transactions = book.transactions
+        data = [] 
+        for transaction in transactions:
+            if account and not any(split.account.fullname == account for split in transaction.splits):
+                continue
+            if not transaction.splits:
+                continue
+            if not transaction.post_date:
+                continue
+
+            data.append({
+                "description": transaction.description,
+                "splits": [str(split) for split in transaction.splits],
+                "post_date": transaction.post_date,
+                "amount": sum(split.value for split in transaction.splits if split.value > 0),
+                "account_amount": sum(split.value for split in transaction.splits if split.account.fullname == account) if account else None
+            })
+        return sorted(data, key=lambda x: x["post_date"], reverse=False)
+
+    def balances(self, gnucash_file: str, *, traditional: bool = False):
+        """
+        Returns balances of all accounts in gnucash file.
+        """
+        if traditional:
+            from bankometer.gnucash import GnuCashBook
+            book = GnuCashBook.open_book(gnucash_file)
+            accounts = book.get_accounts()
+            data = []
+            for account in accounts:
+                data.append({
+                    "name": account.get_full_name(),
+                    "balance": account.get_balance()
+                })
+            return data
+        book = piecash.open_book(gnucash_file)
+        data = [] 
+        for account in book.accounts:
+            balance = book
+            data.append({
+                "name": account.fullname,
+                "balance": account.balance
+            })
+        df = pd.DataFrame(data)
+        return df
+
+    def add_transaction(self, gnucash_file: str, source: str, destination: str, amount: float, description: str):
+        book = piecash.open_book(gnucash_file)
+        my_currency = "RSD"
+        currency = None 
+        for c in book.currencies:
+            if my_currency in c.mnemonic:
+                currency = c
+                break
+        if currency is None:
+            print("Currency not found")
+            return
+        source_account = next(filter(lambda x: source in x.fullname, book.accounts))
+        destination_account = next(filter(lambda x: destination in x.fullname, book.accounts))
+        book.transactions.append(piecash.Transaction(
+            currency=currency,
+            post_date=datetime.datetime.now().date(),
+            description=description,
+            splits=[
+                piecash.Split(account=source_account, value=-amount),
+                piecash.Split(account=destination_account, value=amount)
+            ]
+        ))
+        book.save()
 
 def main():
-    import datetime
-    import matplotlib.pyplot as plt
-    import numpy as np 
-    import sys
-    from ArgumentStack import ArgumentStack
 
     calculate_monthly_by_year_rate = lambda P, r, T: P*r*(r+1)**T / ((1+r)**T - 1)
     calculate_coupon = lambda P, r, T: calculate_monthly_by_year_rate(P, r/12, T)

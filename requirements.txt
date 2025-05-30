@@ -10,3 +10,5 @@ selenium-wire
 selenium
 setuptools
 beautifulsoup4
+orgasm-package 
+lxml
