@@ -91,10 +91,9 @@ class Methods:
 
             data.append({
                 "description": transaction.description,
-                "splits": [str(split) for split in transaction.splits],
                 "post_date": transaction.post_date,
-                "amount": sum(split.value for split in transaction.splits if split.value > 0),
-                "account_amount": sum(split.value for split in transaction.splits if split.account.fullname == account) if account else None
+                "amount": sum(split.quantity for split in transaction.splits if split.value > 0),
+                "account_amount": sum(split.quantity for split in transaction.splits if split.account.fullname == account) if account else None
             })
         return sorted(data, key=lambda x: x["post_date"], reverse=False)
 
@@ -113,16 +112,18 @@ class Methods:
                     "balance": account.get_balance()
                 })
             return data
-        book = piecash.open_book(gnucash_file)
+        accounts = self.accounts(gnucash_file)
         data = [] 
-        for account in book.accounts:
-            balance = book
+        for account in accounts:
+            balance = 0 
+            for transaction in self.transactions(gnucash_file, account=account["name"]):
+                if transaction["account_amount"] is not None:
+                    balance += transaction["account_amount"]
             data.append({
-                "name": account.fullname,
-                "balance": account.balance
+                "name": account["name"],
+                "balance": balance
             })
-        df = pd.DataFrame(data)
-        return df
+        return data
 
     def add_transaction(self, gnucash_file: str, source: str, destination: str, amount: float, description: str):
         book = piecash.open_book(gnucash_file)
