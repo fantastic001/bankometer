@@ -21,6 +21,8 @@ class Change:
         self.value = value
 
     def __str__(self):
+        if self.change_type == ChangeType.REMOVE:
+            return f"{self.change_type} at {self.path}: {self.old_value} removed"
         return f"{self.change_type} at {self.path}: {self.value}"
 
     def __repr__(self):
