@@ -14,6 +14,7 @@ import sqlalchemy.orm
 import sqlalchemy.orm.dynamic
 
 from bankometer import objdiff
+from bankometer.config import get_config_dict
 
 def load_config():
     """
@@ -58,6 +59,12 @@ def load_bank_module(config, account_name) -> BankInterface:
     module = importlib.import_module("bankometer.bank_modules.%s" % modulename)
     return getattr(module, classname)(config)
 
+
+def get_account(account):
+    aliases = get_config_dict("account_aliases", {}, "Aliases for accounts in gnucash file")
+    if account in aliases:
+        return aliases[account]
+    return account
 class Methods:
     
     def accounts(self, gnucash_file: str):
@@ -81,6 +88,7 @@ class Methods:
         return data 
 
     def transactions(self, gnucash_file: str, *, account: str = ""):
+        account = get_account(account)
         book = piecash.open_book(gnucash_file)
         transactions = book.transactions
         data = [] 
@@ -128,10 +136,13 @@ class Methods:
             })
         return data
 
-    def add_transaction(self, gnucash_file: str, source: str, destination: str, 
+    def add_transaction(self, gnucash_file: str, source: str, target: str, 
             amount: float, description: str, *, currency: str = "RSD"):
+        destination = target
         old_balance = self.balances(gnucash_file)
         amount: Decimal = Decimal("%f" % amount)
+        source = get_account(source)
+        destination = get_account(destination)
         book = piecash.open_book(gnucash_file, readonly=False)
         my_currency = currency
         currency = None 
