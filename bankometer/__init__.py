@@ -1,5 +1,6 @@
 
 import datetime
+from decimal import Decimal
 from email.policy import default 
 import pandas as pd 
 
@@ -11,6 +12,8 @@ import sys
 import sqlalchemy
 import sqlalchemy.orm
 import sqlalchemy.orm.dynamic
+
+from bankometer import objdiff
 
 def load_config():
     """
@@ -125,9 +128,12 @@ class Methods:
             })
         return data
 
-    def add_transaction(self, gnucash_file: str, source: str, destination: str, amount: float, description: str):
-        book = piecash.open_book(gnucash_file)
-        my_currency = "RSD"
+    def add_transaction(self, gnucash_file: str, source: str, destination: str, 
+            amount: float, description: str, *, currency: str = "RSD"):
+        old_balance = self.balances(gnucash_file)
+        amount: Decimal = Decimal("%f" % amount)
+        book = piecash.open_book(gnucash_file, readonly=False)
+        my_currency = currency
         currency = None 
         for c in book.currencies:
             if my_currency in c.mnemonic:
@@ -148,6 +154,9 @@ class Methods:
             ]
         ))
         book.save()
+        new_balance = self.balances(gnucash_file)
+        balance_diff = objdiff.diff(old_balance, new_balance)
+        return balance_diff
 
 def main():
 
