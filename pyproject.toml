@@ -1,0 +1,35 @@
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bankometer"
+version = "1.0"
+description = "A command-line tool for managing bank transactions with support for multiple banks and filters."
+authors = [
+    { name="Stefan Nožinić", email="stefan@lugons.org" }
+]
+dependencies = [
+    "piecash",
+    "requests", 
+    "pandas",
+    "setuptools",
+    "orgasm-package", 
+    "lxml",
+    "tabulate",
+    "sqlalchemy"
+]
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+gtd = "gtd.__main__:main"
+
+[tool.setuptools.packages.find]
+exclude = ["systemd*"]

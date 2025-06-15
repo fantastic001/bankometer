@@ -9,12 +9,17 @@ setup(
     url="https://github.com/fantastic001/bankometer", 
     packages=[
         "bankometer",
-        "bankometer.bank_modules"
+        "bankometer"
     ],
     install_requires=[
-        "pyyaml",
-        "requests",
-        "pandas"
+        "piecash",
+        "requests", 
+        "pandas",
+        "setuptools",
+        "orgasm-package", 
+        "lxml",
+        "tabulate",
+        "sqlalchemy"
     ],
     entry_points={
         "console_scripts": [

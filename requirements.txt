@@ -1,15 +1,7 @@
-numpy
-matplotlib
-ArgumentStack
 piecash
-pyyaml 
 requests 
 pandas
-blinker==1.7.0
-selenium-wire 
-selenium
 setuptools
-beautifulsoup4
 orgasm-package 
 lxml
 tabulate
