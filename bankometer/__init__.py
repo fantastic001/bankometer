@@ -119,7 +119,11 @@ class Methods:
                 "amount": sum(split.quantity for split in transaction.splits if split.value > 0),
                 "account_amount": sum(split.quantity for split in transaction.splits if split.account.fullname == account) if account else None
             })
-        return sorted(data, key=lambda x: x["post_date"], reverse=False)
+        data = list(sorted(data, key=lambda x: x["post_date"], reverse=False))
+        # assign identifiers 
+        for i, transaction in enumerate(data):
+            transaction["id"] = i + 1
+        return data
 
     @http_get
     def balances(self, *, traditional: bool = False):
@@ -151,11 +155,53 @@ class Methods:
             })
         return data
 
+    @http_get
+    def balance(self, account: str):
+        """
+        Returns balance of a single account in gnucash file.
+        
+        Args:
+            account (str): Full name of the account.
+        Returns:
+            dict: Dictionary with account name and balance.
+            If account does not exist, returns balance of 0.
+            If account is not specified, returns balance of 0.
+        """
+        gnucash_file = DEFAULT_GNUCASH_FILE
+        book = piecash.open_book(gnucash_file)
+        account = get_account(account)
+        if not account:
+            return {
+                "name": account,
+                "balance": 0
+            }
+        account_obj = next(filter(lambda x: x.fullname == account, book.accounts), None)
+        if not account_obj:
+            return {
+                "name": account,
+                "balance": 0
+            }
+        transactions = self.transactions(account=account)
+        if not transactions:
+            return {
+                "name": account_obj.fullname,
+                "balance": 0
+            }
+        balance = 0
+        for transaction in transactions:
+            if transaction["account_amount"] is not None:
+                balance += transaction["account_amount"]
+
+        return {
+            "name": account_obj.fullname,
+            "balance": balance
+        }
+
     def add_transaction(self, source: str, target: str,
             amount: float, description: str, *, currency: str = "RSD"):
         gnucash_file = DEFAULT_GNUCASH_FILE
         destination = target
-        old_balance = self.balances(gnucash_file)
+        old_balance = self.balance(account=source)
         amount: Decimal = Decimal("%f" % amount)
         source = get_account(source)
         destination = get_account(destination)
@@ -181,8 +227,14 @@ class Methods:
             ]
         ))
         book.save()
-        new_balance = self.balances(gnucash_file)
-        balance_diff = objdiff.diff(old_balance, new_balance)
-        return balance_diff
+        new_balance = self.balance(account=source)
+        return {
+            "source": source,
+            "destination": destination,
+            "amount": amount,
+            "description": description,
+            "old_balance": old_balance["balance"],
+            "new_balance": new_balance["balance"]
+        }
 
     
