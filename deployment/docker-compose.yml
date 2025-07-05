@@ -77,7 +77,7 @@ services:
   proxy-service:
     restart: unless-stopped
     ports:
-      - "${MAIN_PORT}:10000"
+      - "127.0.0.1:${MAIN_PORT}:10000"
     container_name: bbproxy
     image: budibase/proxy
     environment:
@@ -117,8 +117,6 @@ services:
     volumes:
       - ~/.config/bankometer.json:/home/appuser/.config/bankometer.json
       - ~/Desktop/test.gnucash:/home/appuser/test.gnucash
-    ports:
-      - "8000:8000"
     environment:
       - BANKOMETER_REST_API=1
       - BANKOMETER_REST_API_PORT=8000
