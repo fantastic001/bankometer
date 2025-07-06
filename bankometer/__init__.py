@@ -85,6 +85,9 @@ class Methods:
         book = piecash.open_book(gnucash_file)
         data = [] 
         for account in book.accounts:
+            if any(child_candidate for child_candidate in book.accounts if is_child(account.fullname, child_candidate.fullname) and child_candidate.fullname != account.fullname):
+                # Skip accounts that have children, we only want leaf accounts
+                continue
             prices: sqlalchemy.orm.dynamic.AppenderQuery = account.commodity.prices if account.commodity else None # type: ignore
             
             default_currency =  not prices or not prices.first()
@@ -198,7 +201,7 @@ class Methods:
         }
 
     def add_transaction(self, source: str, target: str,
-            amount: float, description: str, *, currency: str = "RSD"):
+            amount: float, description: str, *, currency: str = "RSD", date: str = ""):
         gnucash_file = DEFAULT_GNUCASH_FILE
         destination = target
         old_balance = self.balance(account=source)
@@ -219,7 +222,7 @@ class Methods:
         destination_account = next(filter(lambda x: destination in x.fullname, book.accounts))
         book.transactions.append(piecash.Transaction(
             currency=currency,
-            post_date=datetime.datetime.now().date(),
+            post_date=datetime.datetime.now().date() if not date else datetime.datetime.strptime(date, "%Y-%m-%d").date(),
             description=description,
             splits=[
                 piecash.Split(account=source_account, value=-amount),
