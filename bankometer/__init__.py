@@ -121,7 +121,8 @@ class Methods:
                 "description": transaction.description,
                 "post_date": transaction.post_date,
                 "amount": sum(split.quantity for split in transaction.splits if split.value > 0),
-                "account_amount": sum(split.quantity for split in transaction.splits if split.account.fullname == account) if account else None
+                "account_amount": sum(split.quantity for split in transaction.splits if split.account.fullname == account) if account else None,
+                "target_accounts": [split.account.fullname for split in transaction.splits if split.account.fullname != account],
             })
         data = list(sorted(data, key=lambda x: x["post_date"], reverse=False))
         # assign ids by concatenating hash of current transaction and previous transaction
@@ -143,6 +144,32 @@ class Methods:
         for i, transaction in enumerate(data):
             transaction["order"] = i + 1
         return data
+    
+    @http_post
+    def revert_transaction(self, account: str, transaction_id: str):
+        """
+        Reverts a transaction by its ID.
+        
+        Args:
+            source_account (str): Full name of the account where the transaction was made.
+            transaction_id (str): ID of the transaction to revert.
+        Returns:
+            dict: Dictionary with status of the operation.
+        """
+        transactions = self.transactions(account=account)
+        if not transactions:
+            return {"status": "error", "message": "No transactions found for the account."}
+        transaction = next((t for t in transactions if t["id"] == transaction_id), None)
+        if not transaction:
+            return {"status": "error", "message": "Transaction not found."}
+        for target_account in transaction["target_accounts"]:
+            # Revert the transaction by adding a new transaction with negative amount
+            self.add_transaction(
+                source=target_account,
+                target=account,
+                amount=-transaction["account_amount"],
+                description=f"REVERT: {transaction['description']}"
+            )
 
     @http_get
     def balances(self, *, traditional: bool = False):
