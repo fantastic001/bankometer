@@ -1,6 +1,7 @@
 
 import datetime
 from decimal import Decimal
+import hashlib
 import pandas as pd 
 
 import piecash
@@ -123,9 +124,24 @@ class Methods:
                 "account_amount": sum(split.quantity for split in transaction.splits if split.account.fullname == account) if account else None
             })
         data = list(sorted(data, key=lambda x: x["post_date"], reverse=False))
+        # assign ids by concatenating hash of current transaction and previous transaction
+        if not data:
+            return []
+        current_hash = hashlib.sha256("".encode()).hexdigest()
+        for transaction in data:
+            transaction_hash = hashlib.sha256(
+                (
+                    str(transaction["post_date"]) + 
+                    str(transaction["description"]) +
+                    str(transaction["amount"])
+                    ).encode()
+            ).hexdigest()
+            transaction["id"] = hashlib.sha256(
+                (current_hash + transaction_hash).encode()
+            ).hexdigest()
         # assign identifiers 
         for i, transaction in enumerate(data):
-            transaction["id"] = i + 1
+            transaction["order"] = i + 1
         return data
 
     @http_get
