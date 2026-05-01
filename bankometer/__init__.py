@@ -11,6 +11,7 @@ import sqlalchemy.orm
 import sqlalchemy.orm.dynamic
 
 from bankometer import objdiff
+from bankometer.bank_modules.factory import get_statement_processor
 from bankometer.config import get_config_dict, get_config_str
 from orgasm.http_rest import http_get, http_post
 
@@ -283,4 +284,51 @@ class Methods:
             "new_balance": new_balance["balance"]
         }
 
+    def process_statement(self, bank: str, path: str) -> dict[str, float | int | str]:
+        """
+        Process a bank statement and extract transactions from it.
+
+        Args:
+            path (str): Path to the bank statement file.
+
+        Returns:
+            dict[str, float | int | str]: Dictionary containing the extracted transactions.
+        """
+        processor = get_statement_processor(bank)
+        return processor.process_statement(path)
     
+    def dedup_statement(self, path: str, categories: str) -> list[dict[str, str | float | int]]:
+        """
+        Deduplicates transactions from a bank statement csv file using the categories spec.
+
+        Transaction belongs to category if it contains category name in
+        description. If transaction belongs to multiple categories, it is assigned to the first one.
+
+        If transaction does not belong to any category, it will be printed as is, without category.
+
+        Categories sum expenses and incomes.
+
+        Args:
+            path (str): Path to the bank statement file.
+            categories (str): Categories separated by "|". 
+        """
+        categories = categories.split("|")
+        if not path.endswith(".csv"):
+            raise ValueError("Only csv files are supported for deduplication")
+        df = pd.read_csv(path)
+        df["category"] = None
+        for category in categories:
+            df.loc[df["description"].str.contains(category, case=False, na=False), "category"] = category
+        # set category to description if category is not set
+        df["category"] = df.apply(lambda row: row["description"] if pd.isna(row["category"]) else row["category"], axis=1)
+        # sum expenses and incomes by category
+        result = []
+        for category, group in df.groupby("category"):
+            expense = group["credit"].sum() 
+            income = group["debit"].sum()
+            result.append({
+                "category": category,
+                "expense": expense,
+                "income": income
+            })
+        return result

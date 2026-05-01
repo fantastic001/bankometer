@@ -1,144 +1,124 @@
 
-from io import StringIO
-from bankometer import BankInterface
-import requests 
-
-from seleniumwire import webdriver  # Import selenium-wire for request/response interception
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 import time
 from bs4 import BeautifulSoup
 import pandas as pd 
-import datetime 
+import datetime
+import pdfplumber
 
-class YettelException(Exception):
-    pass
+import re
 
-def start_browser(chromedriver_path = None):
-    # Configure Chrome options
-    chrome_options = Options()
-    chrome_options.add_argument("--start-maximized")  # Open browser in maximized mode
-    chrome_options.add_argument("--disable-infobars")  # Disable info bars
-    chrome_options.add_argument("--disable-extensions")  # Disable extensions
-    service = Service(chromedriver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+from bankometer.bank_modules import StatementProcessor 
+from pathlib import Path
 
-    return driver
+class YettelStatementProcessor(StatementProcessor):
 
-def sniff_requests(driver, filter = None):
-    # Intercept network requests and responses
-    for request in driver.requests:
-        if request.response:
-            pass 
-def capture_cookies(driver):
-    # Extract cookies from the browser session
-    cookies = driver.get_cookies()
-    print("Captured Cookies:", cookies)
-    return cookies
+    def _parse_amount(self, x: str) -> float:
+        return float(x.replace(".", "").replace(",", "."))
+    
+    def _parse_table(self, page_text: str) -> list[list[str | float]]:
+        rows = []
+        lines = page_text.split("\n")
 
-class Yettel(BankInterface):
-    def get_balance(self):
-        raise NotImplementedError()
-    def get_transactions(self, start_date: datetime.date, end_date: datetime.date):
-        url = 'https://online.mobibanka.rs/CustomerAccount/Accounts/PrintList'
-        headers = {
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'Origin': 'https://online.mobibanka.rs'
+        pattern = re.compile(
+            r"^\d+\s+(.*?)\s+(\d{2}\.\d{2}\.\d{4})\s+(\d{2}\.\d{2}\.\d{4})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)"
+        )
+
+        for line in lines:
+            m = pattern.search(line)
+            if m:
+                opis, d1, d2, isplata, uplata, stanje = m.groups()
+                rows.append([
+                    opis.strip(),
+                    d1,
+                    d2,
+                    self._parse_amount(isplata),
+                    self._parse_amount(uplata),
+                    self._parse_amount(stanje),
+                ])
+        return rows
+
+    def process_statement(self, statement_path: Path) -> dict[str, float | int | str]:
+        usd_rows = []
+        rsd_rows = []
+        eur_rows = []
+        with pdfplumber.open(statement_path) as pdf:
+            current = None
+            for page in pdf.pages:
+                text = page.extract_text()
+
+                if "Izvod po valuti: USD" in text:
+                    current = "USD"
+                elif "Izvod po valuti: RSD" in text:
+                    current = "RSD"
+                elif "Izvod po valuti: EUR" in text:
+                    current = "EUR"
+
+                rows = self._parse_table(text)
+
+                if current == "USD":
+                    usd_rows.extend(rows)
+                elif current == "RSD":
+                    rsd_rows.extend(rows)
+                elif current == "EUR":
+                    eur_rows.extend(rows)
+        usd_df = pd.DataFrame(usd_rows, columns=[
+            "opis", "datum_knjizenja", "datum_valute",
+            "isplata", "uplata", "stanje"
+        ])
+        rsd_df = pd.DataFrame(rsd_rows, columns=[
+            "opis", "datum_knjizenja", "datum_valute",
+            "isplata", "uplata", "stanje"
+        ])
+        eur_df = pd.DataFrame(eur_rows, columns=[
+            "opis", "datum_knjizenja", "datum_valute",
+            "isplata", "uplata", "stanje"
+        ])
+
+        rsd_df = rsd_df.rename(columns={
+            "isplata": "credit",
+            "uplata": "debit",
+            "stanje": "balance",
+            "datum_knjizenja": "accounting_date",
+            "datum_valute": "date",
+            "opis": "description",
+        })
+        usd_df = usd_df.rename(columns={
+            "isplata": "credit",
+            "uplata": "debit",
+            "stanje": "balance",
+            "datum_knjizenja": "accounting_date",
+            "datum_valute": "date",
+            "opis": "description",
+        })
+        eur_df = eur_df.rename(columns={
+            "isplata": "credit",
+            "uplata": "debit",
+            "stanje": "balance",
+            "datum_knjizenja": "accounting_date",
+            "datum_valute": "date",
+            "opis": "description",
+        })
+        current_time = datetime.datetime.now().timestamp()
+        usd_csv_name = f"yettel_usd_{current_time}.csv"
+        rsd_csv_name = f"yettel_rsd_{current_time}.csv"
+        eur_csv_name = f"yettel_eur_{current_time}.csv"
+        usd_df.to_csv(usd_csv_name, index=False)
+        rsd_df.to_csv(rsd_csv_name, index=False)
+        eur_df.to_csv(eur_csv_name, index=False)
+        return {
+            "USD": usd_csv_name,
+            "RSD": rsd_csv_name,
+            "EUR": eur_csv_name,
+            "USD_total_spent": usd_df["credit"].sum(),
+            "RSD_total_spent": rsd_df["credit"].sum(),
+            "EUR_total_spent": eur_df["credit"].sum(),
+            "USD_total_received": usd_df["debit"].sum(),
+            "RSD_total_received": rsd_df["debit"].sum(),
+            "EUR_total_received": eur_df["debit"].sum(),
         }
-        data = {
-            'PageNumber': '',
-            'PageSize': '',
-            'Report': 'csv',
-            'PaymentDescription': '',
-            'DateFrom': start_date.strftime("%d/%m/%Y"),
-            'DateTo': end_date.strftime("%d/%m/%Y"),
-            'CurrencyList_input': 'Sve valute',
-            'CurrencyList': '',
-            'AmountFrom': '',
-            'AmountTo': '',
-            'Direction': '',
-            'TransactionType': '-1',
-            'AccountPicker': self.account_id,
-            'RelatedCardPicker': '-1',
-            'CounterParty': '',
-            'StandingOrderId': '',
-            'SortBy': 'ValueDate',
-            'SortAsc': 'Desc',
-            'GeoLatitude': '',
-            'GeoLongitude': '',
-            'Radius': '2',
-            'StatusPicker': 'Executed',
-            'ViewPicker': 'List'
-        }
-        response = self.session.post(url, headers=headers, data=data)
-        print("Response: ", response.text)
-        print("Status code: ", response.status_code)
-        # parse response hml and find div containing /CustomerAccount/Accounts/RenderDocument as text 
-        csv_url = None 
-        soup = BeautifulSoup(response.text, 'html.parser')
-        all_divs = soup.find_all('div')
-        for div in all_divs:
-            children = list(div.children)
-            filter_text =  "/CustomerAccount/Accounts/RenderDocument"
-            if  div.attrs.get('id') == "mainContent":
-                print("Found div: ", div)
-                for child in children:
-                    if filter_text in str(child):
-                        print("Found child: ", child)
-                        csv_url = "https://online.mobibanka.rs" + child.strip().replace("\n", "").replace(" ", "").replace("\t", "")
-                break
-        if csv_url is not None:
-            print("CSV URL: ", csv_url)
-            response = self.session.get(csv_url)
-            df = pd.read_csv(StringIO(response.text))
-            return df 
-        else:
-            raise YettelException("Could not find CSV URL in response")
 
 
-
-    def login(self):
-        max_wait_time = self.get_config("max_wait_time", 300)
-        driver = start_browser()
-        account_id = None 
-        try:
-            # Navigate to login page
-            login_url = "https://online.mobibanka.rs/Identity"
-            driver.get(login_url)
-            
-            print("Waiting for user to log in...")
-
-            for i in range(max_wait_time):
-                try:
-                    # try to find element with attribute data-accountid 
-                    root = driver.find_element(By.XPATH, '//*[@data-accountid]')
-                    account_id = root.get_attribute('data-accountid')
-                    print("Account ID: ", account_id)
-                    break
-                except:
-                    time.sleep(1)
-                    continue
-            if account_id is None:
-                raise YettelException("Could not find account ID in response")
-
-            # Sniff network requests (if needed)
-            sniff_requests(driver)
-
-            # Capture cookies after login
-            cookies = capture_cookies(driver)
-            session = requests.Session()
-            for cookie in cookies:
-                session.cookies.set(cookie["name"], cookie["value"])
-        finally:
-            driver.quit()
-            self.session = session
-            self.account_id = account_id
-
+        
 
 if __name__ == "__main__":
     interface = Yettel({})
