@@ -55,3 +55,11 @@ Categories sum expenses and incomes.
 Categories are separated by pipe symbol `|`. For instance, if you want to sum up all transactions with "food" and "transport" in description, you can execute:
 
     python -m bankometer dedup_statement -p <path_to_csv> -c "food|transport"
+
+# Contributing
+
+## Adding support for new bank statement format
+
+Create `BankStatementProcessor` class in `bankometer/bank_modules` that inherits from `StatementProcessor` and implements `process_statement` method. 
+
+Then, add the new processor to `get_statement_processor` function in `bankometer/bank_modules/factory.py`.
