@@ -6,3 +6,4 @@ orgasm-package
 lxml
 tabulate
 flask
+pdfplumber
